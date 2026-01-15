@@ -12,7 +12,9 @@ from servicos.calculadora_corporal import (
     obter_cor_imc,
     calcular_tmb,
     calcular_gasto_calorico_diario,
-    calcular_idade
+    calcular_idade,
+    calcular_gordura_pollock7,
+    classificar_percentual_gordura
 )
 
 
@@ -30,6 +32,7 @@ def renderizar_kpis_principais(cliente: dict, avaliacao: dict) -> None:
     peso = avaliacao.get("peso_kg", 0)
     altura = avaliacao.get("altura_cm", 0)
     nivel_atividade = avaliacao.get("nivel_atividade", "Sedentário")
+    dobras = avaliacao.get("dobras_cutaneas", {})
     
     genero = cliente.get("genero", "Masculino")
     data_nascimento = cliente.get("data_nascimento", "")
@@ -41,8 +44,20 @@ def renderizar_kpis_principais(cliente: dict, avaliacao: dict) -> None:
     tmb = calcular_tmb(peso, altura, idade, genero)
     gasto_diario = calcular_gasto_calorico_diario(tmb, nivel_atividade)
     
-    # Renderização
-    col1, col2, col3, col4 = st.columns(4)
+    # Calcula % gordura se houver dobras
+    percentual_gordura = None
+    classificacao_gordura = None
+    if dobras and any(v > 0 for v in dobras.values()):
+        resultado_gordura = calcular_gordura_pollock7(dobras, idade, genero)
+        percentual_gordura = resultado_gordura["percentual_gordura"]
+        classificacao_gordura = resultado_gordura["classificacao"]
+    
+    # Renderização - 5 colunas se tiver gordura, 4 se não tiver
+    if percentual_gordura is not None:
+        col1, col2, col3, col4, col5 = st.columns(5)
+    else:
+        col1, col2, col3, col4 = st.columns(4)
+        col5 = None
     
     with col1:
         st.metric(
@@ -70,6 +85,14 @@ def renderizar_kpis_principais(cliente: dict, avaliacao: dict) -> None:
             value=f"{gasto_diario:.0f} kcal",
             help=f"Nível: {nivel_atividade}"
         )
+    
+    if col5 is not None:
+        with col5:
+            st.metric(
+                label="🔥 % Gordura",
+                value=f"{percentual_gordura:.1f}%",
+                help=classificacao_gordura
+            )
 
 
 def renderizar_kpi_imc_detalhado(peso: float, altura: float) -> None:
