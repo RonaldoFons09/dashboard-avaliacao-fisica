@@ -232,3 +232,185 @@ def listar_intensidades_treino() -> list[str]:
     :return: Lista de strings com as intensidades
     """
     return list(GASTO_POR_INTENSIDADE.keys())
+
+
+# =====================================================
+# DOBRAS CUTÂNEAS - MÉTODO POLLOCK 7 DOBRAS
+# =====================================================
+
+# Classificações de percentual de gordura por gênero
+CLASSIFICACOES_GORDURA_MASCULINO = [
+    (5.9, "Essencial"),
+    (13.9, "Atlético"),
+    (17.9, "Fitness"),
+    (24.9, "Aceitável"),
+    (float("inf"), "Obesidade")
+]
+
+CLASSIFICACOES_GORDURA_FEMININO = [
+    (13.9, "Essencial"),
+    (20.9, "Atlético"),
+    (24.9, "Fitness"),
+    (31.9, "Aceitável"),
+    (float("inf"), "Obesidade")
+]
+
+
+def calcular_soma_7_dobras(dobras: dict) -> float:
+    """
+    Calcula a soma das 7 dobras cutâneas.
+    
+    :param dobras: Dicionário com as 7 medidas em mm
+    :return: Soma total em mm
+    """
+    chaves = [
+        "peitoral", "axilar_media", "triceps", "subescapular",
+        "abdominal", "suprailiaca", "coxa"
+    ]
+    
+    soma = sum(dobras.get(chave, 0) for chave in chaves)
+    return soma
+
+
+def calcular_densidade_corporal_pollock7(
+    soma_dobras: float,
+    idade: int,
+    genero: str
+) -> float:
+    """
+    Calcula a densidade corporal usando as fórmulas de Jackson-Pollock (1978).
+    
+    Fórmulas:
+    - Masculino: DC = 1.112 - (0.00043499 × Σ7) + (0.00000055 × Σ7²) - (0.00028826 × idade)
+    - Feminino: DC = 1.097 - (0.00046971 × Σ7) + (0.00000056 × Σ7²) - (0.00012828 × idade)
+    
+    :param soma_dobras: Soma das 7 dobras em mm
+    :param idade: Idade em anos
+    :param genero: "Masculino" ou "Feminino"
+    :return: Densidade corporal (g/cm³)
+    """
+    if soma_dobras <= 0 or idade <= 0:
+        return 0.0
+    
+    if genero.lower() == "masculino":
+        dc = (1.112 
+              - (0.00043499 * soma_dobras) 
+              + (0.00000055 * soma_dobras ** 2) 
+              - (0.00028826 * idade))
+    else:
+        dc = (1.097 
+              - (0.00046971 * soma_dobras) 
+              + (0.00000056 * soma_dobras ** 2) 
+              - (0.00012828 * idade))
+    
+    return round(dc, 5)
+
+
+def calcular_percentual_gordura(densidade_corporal: float) -> float:
+    """
+    Calcula o percentual de gordura corporal usando a fórmula de Siri.
+    
+    Fórmula: %G = [(4.95 / DC) - 4.5] × 100
+    
+    :param densidade_corporal: Densidade corporal em g/cm³
+    :return: Percentual de gordura corporal
+    """
+    if densidade_corporal <= 0:
+        return 0.0
+    
+    percentual = ((4.95 / densidade_corporal) - 4.5) * 100
+    
+    # Limita valores extremos
+    percentual = max(0, min(percentual, 60))
+    
+    return round(percentual, 1)
+
+
+def calcular_gordura_pollock7(dobras: dict, idade: int, genero: str) -> dict:
+    """
+    Calcula todos os resultados de composição corporal pelo método Pollock 7.
+    
+    :param dobras: Dicionário com as 7 dobras cutâneas em mm
+    :param idade: Idade em anos
+    :param genero: "Masculino" ou "Feminino"
+    :return: Dicionário com soma, densidade, percentual e classificação
+    """
+    soma = calcular_soma_7_dobras(dobras)
+    densidade = calcular_densidade_corporal_pollock7(soma, idade, genero)
+    percentual = calcular_percentual_gordura(densidade)
+    classificacao = classificar_percentual_gordura(percentual, genero)
+    
+    return {
+        "soma_dobras": soma,
+        "densidade_corporal": densidade,
+        "percentual_gordura": percentual,
+        "classificacao": classificacao
+    }
+
+
+def classificar_percentual_gordura(percentual: float, genero: str) -> str:
+    """
+    Classifica o percentual de gordura corporal.
+    
+    :param percentual: Percentual de gordura
+    :param genero: "Masculino" ou "Feminino"
+    :return: Classificação textual
+    """
+    if percentual <= 0:
+        return "Não calculado"
+    
+    classificacoes = (
+        CLASSIFICACOES_GORDURA_MASCULINO 
+        if genero.lower() == "masculino" 
+        else CLASSIFICACOES_GORDURA_FEMININO
+    )
+    
+    for limite, classificacao in classificacoes:
+        if percentual <= limite:
+            return classificacao
+    
+    return "Não classificado"
+
+
+def obter_cor_gordura(percentual: float, genero: str) -> str:
+    """
+    Retorna uma cor indicativa para o percentual de gordura.
+    
+    :param percentual: Percentual de gordura
+    :param genero: "Masculino" ou "Feminino"
+    :return: Código de cor em formato hexadecimal
+    """
+    if percentual <= 0:
+        return "#808080"  # Cinza
+    
+    classificacao = classificar_percentual_gordura(percentual, genero)
+    
+    cores = {
+        "Essencial": "#e74c3c",   # Vermelho - muito baixo (risco)
+        "Atlético": "#2ecc71",     # Verde - excelente
+        "Fitness": "#27ae60",      # Verde escuro - bom
+        "Aceitável": "#f39c12",    # Laranja - moderado
+        "Obesidade": "#c0392b"     # Vermelho escuro - alto
+    }
+    
+    return cores.get(classificacao, "#808080")
+
+
+def calcular_massas_corporais(peso_kg: float, percentual_gordura: float) -> dict:
+    """
+    Calcula a massa gorda e massa magra em kg.
+    
+    :param peso_kg: Peso total em kg
+    :param percentual_gordura: Percentual de gordura corporal
+    :return: Dicionário com massa_gorda e massa_magra em kg
+    """
+    if peso_kg <= 0 or percentual_gordura < 0:
+        return {"massa_gorda": 0.0, "massa_magra": 0.0}
+    
+    massa_gorda = peso_kg * (percentual_gordura / 100)
+    massa_magra = peso_kg - massa_gorda
+    
+    return {
+        "massa_gorda": round(massa_gorda, 1),
+        "massa_magra": round(massa_magra, 1)
+    }

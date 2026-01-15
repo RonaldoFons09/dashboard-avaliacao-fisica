@@ -42,6 +42,15 @@ def criar_avaliacao_vazia() -> dict:
             "coxa_inferior_esquerda": 0.0,
             "panturrilha_direita": 0.0,
             "panturrilha_esquerda": 0.0
+        },
+        "dobras_cutaneas": {
+            "peitoral": 0.0,
+            "axilar_media": 0.0,
+            "triceps": 0.0,
+            "subescapular": 0.0,
+            "abdominal": 0.0,
+            "suprailiaca": 0.0,
+            "coxa": 0.0
         }
     }
 
@@ -59,8 +68,9 @@ def adicionar_avaliacao(cliente_id: str, avaliacao: dict) -> bool:
         if not aba:
             return False
         
-        # Serializa perímetros como JSON
+        # Serializa perímetros e dobras cutâneas como JSON
         perimetros_json = json.dumps(avaliacao.get("perimetros", {}), ensure_ascii=False)
+        dobras_json = json.dumps(avaliacao.get("dobras_cutaneas", {}), ensure_ascii=False)
         
         linha = [
             avaliacao.get("id", str(uuid.uuid4())),
@@ -69,7 +79,8 @@ def adicionar_avaliacao(cliente_id: str, avaliacao: dict) -> bool:
             avaliacao.get("peso_kg", 0),
             avaliacao.get("altura_cm", 0),
             avaliacao.get("nivel_atividade", ""),
-            perimetros_json
+            perimetros_json,
+            dobras_json
         ]
         
         aba.append_row(linha)
@@ -91,6 +102,7 @@ def obter_historico_avaliacoes(cliente_id: str) -> list[dict]:
         
         for registro in registros:
             if str(registro.get("cliente_id", "")) == cliente_id:
+                # Deserializa perímetros
                 perimetros_json = registro.get("perimetros_json", "{}")
                 if isinstance(perimetros_json, str):
                     try:
@@ -100,13 +112,24 @@ def obter_historico_avaliacoes(cliente_id: str) -> list[dict]:
                 else:
                     perimetros = {}
                 
+                # Deserializa dobras cutâneas
+                dobras_json = registro.get("dobras_cutaneas_json", "{}")
+                if isinstance(dobras_json, str):
+                    try:
+                        dobras_cutaneas = json.loads(dobras_json)
+                    except json.JSONDecodeError:
+                        dobras_cutaneas = {}
+                else:
+                    dobras_cutaneas = {}
+                
                 avaliacao = {
                     "id": str(registro.get("id", "")),
                     "data": str(registro.get("data", "")),
                     "peso_kg": float(registro.get("peso_kg", 0) or 0),
                     "altura_cm": float(registro.get("altura_cm", 0) or 0),
                     "nivel_atividade": str(registro.get("nivel_atividade", "")),
-                    "perimetros": perimetros
+                    "perimetros": perimetros,
+                    "dobras_cutaneas": dobras_cutaneas
                 }
                 avaliacoes.append(avaliacao)
         

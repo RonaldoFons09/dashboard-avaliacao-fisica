@@ -2,7 +2,7 @@
 Página Avaliação - Registro de nova avaliação física.
 
 Esta página permite registrar uma nova avaliação completa do cliente,
-incluindo peso, altura, nível de atividade e todos os perímetros corporais.
+incluindo peso, altura, nível de atividade, perímetros corporais e dobras cutâneas.
 """
 
 import streamlit as st
@@ -15,7 +15,9 @@ from servicos.calculadora_corporal import (
     calcular_tmb,
     calcular_gasto_calorico_diario,
     calcular_idade,
-    listar_niveis_atividade
+    listar_niveis_atividade,
+    calcular_gordura_pollock7,
+    calcular_massas_corporais
 )
 
 
@@ -74,78 +76,168 @@ def renderizar_formulario_avaliacao(cliente: dict) -> None:
         st.info(f"📊 IMC: **{imc}** ({classificacao}) | 🔥 TMB: **{tmb:.0f}** kcal | ⚡ Gasto Diário: **{gasto:.0f}** kcal")
         
         st.divider()
-        st.markdown("### 📏 Perímetros Corporais (cm)")
         
-        # Abas para organizar os perímetros
-        aba_superior, aba_tronco, aba_inferior = st.tabs([
-            "💪 Membros Superiores",
-            "🧍 Tronco",
-            "🦵 Membros Inferiores"
+        # Abas para organizar as medidas
+        aba_perimetros, aba_dobras = st.tabs([
+            "📏 Perímetros Corporais",
+            "📐 Dobras Cutâneas (Pollock 7)"
         ])
         
-        with aba_superior:
-            st.markdown("**Braço**")
-            col1, col2, col3, col4 = st.columns(4)
+        # ======== ABA PERÍMETROS ========
+        with aba_perimetros:
+            aba_superior, aba_tronco, aba_inferior = st.tabs([
+                "💪 Membros Superiores",
+                "🧍 Tronco",
+                "🦵 Membros Inferiores"
+            ])
             
-            with col1:
-                braco_dir_rel = st.number_input("Dir. Relaxado", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="braco_dir_rel")
-            with col2:
-                braco_dir_con = st.number_input("Dir. Contraído", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="braco_dir_con")
-            with col3:
-                braco_esq_rel = st.number_input("Esq. Relaxado", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="braco_esq_rel")
-            with col4:
-                braco_esq_con = st.number_input("Esq. Contraído", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="braco_esq_con")
+            with aba_superior:
+                st.markdown("**Braço (cm)**")
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    braco_dir_rel = st.number_input("Dir. Relaxado", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="braco_dir_rel")
+                with col2:
+                    braco_dir_con = st.number_input("Dir. Contraído", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="braco_dir_con")
+                with col3:
+                    braco_esq_rel = st.number_input("Esq. Relaxado", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="braco_esq_rel")
+                with col4:
+                    braco_esq_con = st.number_input("Esq. Contraído", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="braco_esq_con")
+                
+                st.markdown("**Antebraço (cm)**")
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    antebraco_dir = st.number_input("Direito", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="antebraco_dir")
+                with col2:
+                    antebraco_esq = st.number_input("Esquerdo", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="antebraco_esq")
             
-            st.markdown("**Antebraço**")
-            col1, col2 = st.columns(2)
+            with aba_tronco:
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    ombro = st.number_input("Ombro (cm)", min_value=0.0, max_value=200.0, value=0.0, step=0.5, key="ombro")
+                    cintura = st.number_input("Cintura (cm)", min_value=0.0, max_value=200.0, value=0.0, step=0.5, key="cintura")
+                
+                with col2:
+                    torax = st.number_input("Tórax (cm)", min_value=0.0, max_value=200.0, value=0.0, step=0.5, key="torax")
+                    abdomen = st.number_input("Abdômen (cm)", min_value=0.0, max_value=200.0, value=0.0, step=0.5, key="abdomen")
+                
+                with col3:
+                    quadril = st.number_input("Quadril (cm)", min_value=0.0, max_value=200.0, value=0.0, step=0.5, key="quadril")
             
-            with col1:
-                antebraco_dir = st.number_input("Direito", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="antebraco_dir")
-            with col2:
-                antebraco_esq = st.number_input("Esquerdo", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="antebraco_esq")
+            with aba_inferior:
+                st.markdown("**Coxa Superior (cm)**")
+                col1, col2 = st.columns(2)
+                with col1:
+                    coxa_sup_dir = st.number_input("Direita", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="coxa_sup_dir")
+                with col2:
+                    coxa_sup_esq = st.number_input("Esquerda", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="coxa_sup_esq")
+                
+                st.markdown("**Coxa Média (cm)**")
+                col1, col2 = st.columns(2)
+                with col1:
+                    coxa_med_dir = st.number_input("Direita", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="coxa_med_dir")
+                with col2:
+                    coxa_med_esq = st.number_input("Esquerda", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="coxa_med_esq")
+                
+                st.markdown("**Coxa Inferior (cm)**")
+                col1, col2 = st.columns(2)
+                with col1:
+                    coxa_inf_dir = st.number_input("Direita", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="coxa_inf_dir")
+                with col2:
+                    coxa_inf_esq = st.number_input("Esquerda", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="coxa_inf_esq")
+                
+                st.markdown("**Panturrilha (cm)**")
+                col1, col2 = st.columns(2)
+                with col1:
+                    panturrilha_dir = st.number_input("Direita", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="panturrilha_dir")
+                with col2:
+                    panturrilha_esq = st.number_input("Esquerda", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="panturrilha_esq")
         
-        with aba_tronco:
+        # ======== ABA DOBRAS CUTÂNEAS ========
+        with aba_dobras:
+            st.markdown("""
+            > **Método Pollock 7 Dobras**: Meça com adipômetro no lado direito do corpo.
+            > Valores em **milímetros (mm)**.
+            """)
+            
             col1, col2, col3 = st.columns(3)
             
             with col1:
-                ombro = st.number_input("Ombro", min_value=0.0, max_value=200.0, value=0.0, step=0.5, key="ombro")
-                cintura = st.number_input("Cintura", min_value=0.0, max_value=200.0, value=0.0, step=0.5, key="cintura")
+                dobra_peitoral = st.number_input(
+                    "Peitoral (mm)", 
+                    min_value=0.0, max_value=100.0, value=0.0, step=0.5,
+                    help="Diagonal, entre o mamilo e a axila",
+                    key="dobra_peitoral"
+                )
+                dobra_triceps = st.number_input(
+                    "Tríceps (mm)", 
+                    min_value=0.0, max_value=100.0, value=0.0, step=0.5,
+                    help="Vertical, parte posterior do braço",
+                    key="dobra_triceps"
+                )
+                dobra_subescapular = st.number_input(
+                    "Subescapular (mm)", 
+                    min_value=0.0, max_value=100.0, value=0.0, step=0.5,
+                    help="Diagonal, abaixo da omoplata",
+                    key="dobra_subescapular"
+                )
             
             with col2:
-                torax = st.number_input("Tórax", min_value=0.0, max_value=200.0, value=0.0, step=0.5, key="torax")
-                abdomen = st.number_input("Abdômen", min_value=0.0, max_value=200.0, value=0.0, step=0.5, key="abdomen")
+                dobra_axilar = st.number_input(
+                    "Axilar Média (mm)", 
+                    min_value=0.0, max_value=100.0, value=0.0, step=0.5,
+                    help="Vertical, linha média da axila",
+                    key="dobra_axilar"
+                )
+                dobra_abdominal = st.number_input(
+                    "Abdominal (mm)", 
+                    min_value=0.0, max_value=100.0, value=0.0, step=0.5,
+                    help="Vertical, 5cm à direita do umbigo",
+                    key="dobra_abdominal"
+                )
             
             with col3:
-                quadril = st.number_input("Quadril", min_value=0.0, max_value=200.0, value=0.0, step=0.5, key="quadril")
-        
-        with aba_inferior:
-            st.markdown("**Coxa Superior**")
-            col1, col2 = st.columns(2)
-            with col1:
-                coxa_sup_dir = st.number_input("Direita", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="coxa_sup_dir")
-            with col2:
-                coxa_sup_esq = st.number_input("Esquerda", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="coxa_sup_esq")
+                dobra_suprailiaca = st.number_input(
+                    "Suprailíaca (mm)", 
+                    min_value=0.0, max_value=100.0, value=0.0, step=0.5,
+                    help="Diagonal, acima da crista ilíaca",
+                    key="dobra_suprailiaca"
+                )
+                dobra_coxa = st.number_input(
+                    "Coxa (mm)", 
+                    min_value=0.0, max_value=100.0, value=0.0, step=0.5,
+                    help="Vertical, parte frontal da coxa",
+                    key="dobra_coxa"
+                )
             
-            st.markdown("**Coxa Média**")
-            col1, col2 = st.columns(2)
-            with col1:
-                coxa_med_dir = st.number_input("Direita", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="coxa_med_dir")
-            with col2:
-                coxa_med_esq = st.number_input("Esquerda", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="coxa_med_esq")
+            # Preview do cálculo de gordura
+            dobras_preview = {
+                "peitoral": dobra_peitoral,
+                "axilar_media": dobra_axilar,
+                "triceps": dobra_triceps,
+                "subescapular": dobra_subescapular,
+                "abdominal": dobra_abdominal,
+                "suprailiaca": dobra_suprailiaca,
+                "coxa": dobra_coxa
+            }
             
-            st.markdown("**Coxa Inferior**")
-            col1, col2 = st.columns(2)
-            with col1:
-                coxa_inf_dir = st.number_input("Direita", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="coxa_inf_dir")
-            with col2:
-                coxa_inf_esq = st.number_input("Esquerda", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="coxa_inf_esq")
+            resultado_gordura = calcular_gordura_pollock7(dobras_preview, idade, genero)
+            soma_dobras = resultado_gordura["soma_dobras"]
             
-            st.markdown("**Panturrilha**")
-            col1, col2 = st.columns(2)
-            with col1:
-                panturrilha_dir = st.number_input("Direita", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="panturrilha_dir")
-            with col2:
-                panturrilha_esq = st.number_input("Esquerda", min_value=0.0, max_value=100.0, value=0.0, step=0.5, key="panturrilha_esq")
+            if soma_dobras > 0:
+                perc_gordura = resultado_gordura["percentual_gordura"]
+                classif_gordura = resultado_gordura["classificacao"]
+                massas = calcular_massas_corporais(peso_kg, perc_gordura)
+                
+                st.success(
+                    f"📊 **Resultado Pollock 7** | "
+                    f"Soma: **{soma_dobras:.0f}mm** | "
+                    f"% Gordura: **{perc_gordura:.1f}%** ({classif_gordura}) | "
+                    f"Massa Gorda: **{massas['massa_gorda']:.1f}kg** | "
+                    f"Massa Magra: **{massas['massa_magra']:.1f}kg**"
+                )
         
         st.divider()
         
@@ -180,6 +272,15 @@ def renderizar_formulario_avaliacao(cliente: dict) -> None:
                         "coxa_inferior_esquerda": coxa_inf_esq,
                         "panturrilha_direita": panturrilha_dir,
                         "panturrilha_esquerda": panturrilha_esq
+                    },
+                    "dobras_cutaneas": {
+                        "peitoral": dobra_peitoral,
+                        "axilar_media": dobra_axilar,
+                        "triceps": dobra_triceps,
+                        "subescapular": dobra_subescapular,
+                        "abdominal": dobra_abdominal,
+                        "suprailiaca": dobra_suprailiaca,
+                        "coxa": dobra_coxa
                     }
                 }
                 
