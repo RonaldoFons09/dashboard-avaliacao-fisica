@@ -52,12 +52,8 @@ def renderizar_kpis_principais(cliente: dict, avaliacao: dict) -> None:
         percentual_gordura = resultado_gordura["percentual_gordura"]
         classificacao_gordura = resultado_gordura["classificacao"]
     
-    # Renderização - 5 colunas se tiver gordura, 4 se não tiver
-    if percentual_gordura is not None:
-        col1, col2, col3, col4, col5 = st.columns(5)
-    else:
-        col1, col2, col3, col4 = st.columns(4)
-        col5 = None
+    # Renderização - Ordem: Peso, Gordura, IMC, TMB, Gasto Diário
+    col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
         st.metric(
@@ -66,33 +62,39 @@ def renderizar_kpis_principais(cliente: dict, avaliacao: dict) -> None:
         )
     
     with col2:
+        if percentual_gordura is not None:
+            st.metric(
+                label="🔥 % Gordura",
+                value=f"{percentual_gordura:.1f}%",
+                help=classificacao_gordura
+            )
+        else:
+            st.metric(
+                label="🔥 % Gordura",
+                value="--",
+                help="Adicione dobras cutâneas para calcular"
+            )
+    
+    with col3:
         st.metric(
             label="📊 IMC",
             value=f"{imc}",
             help=classificacao_imc
         )
     
-    with col3:
+    with col4:
         st.metric(
             label="🔥 TMB",
             value=f"{tmb:.0f} kcal",
             help="Taxa Metabólica Basal"
         )
     
-    with col4:
+    with col5:
         st.metric(
             label="⚡ Gasto Diário",
             value=f"{gasto_diario:.0f} kcal",
             help=f"Nível: {nivel_atividade}"
         )
-    
-    if col5 is not None:
-        with col5:
-            st.metric(
-                label="🔥 % Gordura",
-                value=f"{percentual_gordura:.1f}%",
-                help=classificacao_gordura
-            )
 
 
 def renderizar_kpi_imc_detalhado(peso: float, altura: float) -> None:
