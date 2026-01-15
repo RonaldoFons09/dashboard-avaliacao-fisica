@@ -3,16 +3,27 @@ Gerenciador de Avaliações - Módulo de persistência de dados.
 
 Este módulo é responsável por todas as operações relacionadas às avaliações
 físicas dos clientes, incluindo adicionar, consultar e comparar avaliações.
+
+Usa Google Sheets como banco de dados quando disponível, com fallback para JSON local.
 """
 
+import json
 import uuid
 from datetime import datetime
 from typing import Optional
 
+# Tenta importar o gerenciador de Sheets
+try:
+    from dados.gerenciador_sheets import obter_aba_avaliacoes, verificar_conexao
+    SHEETS_DISPONIVEL = True
+except ImportError:
+    SHEETS_DISPONIVEL = False
+
 from dados.gerenciador_clientes import (
     buscar_cliente_por_id,
     _carregar_dados_json,
-    _salvar_dados_json
+    _salvar_dados_json,
+    _usar_sheets
 )
 
 
@@ -52,6 +63,69 @@ def criar_avaliacao_vazia() -> dict:
     }
 
 
+def _carregar_avaliacoes_sheets(cliente_id: str) -> list[dict]:
+    """Carrega avaliações de um cliente do Google Sheets."""
+    try:
+        aba = obter_aba_avaliacoes()
+        if not aba:
+            return []
+        
+        registros = aba.get_all_records()
+        avaliacoes = []
+        
+        for registro in registros:
+            if str(registro.get("cliente_id", "")) == cliente_id:
+                perimetros_json = registro.get("perimetros_json", "{}")
+                if isinstance(perimetros_json, str):
+                    try:
+                        perimetros = json.loads(perimetros_json)
+                    except json.JSONDecodeError:
+                        perimetros = {}
+                else:
+                    perimetros = {}
+                
+                avaliacao = {
+                    "id": str(registro.get("id", "")),
+                    "data": str(registro.get("data", "")),
+                    "peso_kg": float(registro.get("peso_kg", 0)),
+                    "altura_cm": float(registro.get("altura_cm", 0)),
+                    "nivel_atividade": str(registro.get("nivel_atividade", "")),
+                    "perimetros": perimetros
+                }
+                avaliacoes.append(avaliacao)
+        
+        return avaliacoes
+    except Exception as e:
+        print(f"Erro ao carregar avaliações do Sheets: {e}")
+        return []
+
+
+def _adicionar_avaliacao_sheets(cliente_id: str, avaliacao: dict) -> bool:
+    """Adiciona uma avaliação no Google Sheets."""
+    try:
+        aba = obter_aba_avaliacoes()
+        if not aba:
+            return False
+        
+        perimetros_json = json.dumps(avaliacao.get("perimetros", {}), ensure_ascii=False)
+        
+        linha = [
+            avaliacao.get("id", str(uuid.uuid4())),
+            cliente_id,
+            avaliacao.get("data", ""),
+            avaliacao.get("peso_kg", 0),
+            avaliacao.get("altura_cm", 0),
+            avaliacao.get("nivel_atividade", ""),
+            perimetros_json
+        ]
+        
+        aba.append_row(linha)
+        return True
+    except Exception as e:
+        print(f"Erro ao adicionar avaliação no Sheets: {e}")
+        return False
+
+
 def adicionar_avaliacao(cliente_id: str, avaliacao: dict) -> bool:
     """
     Adiciona uma nova avaliação ao histórico do cliente.
@@ -60,18 +134,22 @@ def adicionar_avaliacao(cliente_id: str, avaliacao: dict) -> bool:
     :param avaliacao: Dicionário com dados da avaliação
     :return: True se adicionado com sucesso, False se cliente não encontrado
     """
+    # Garante que a avaliação tenha um ID único
+    if "id" not in avaliacao:
+        avaliacao["id"] = str(uuid.uuid4())
+    
+    # Garante que tenha data
+    if "data" not in avaliacao:
+        avaliacao["data"] = datetime.now().strftime("%Y-%m-%d")
+    
+    if _usar_sheets():
+        return _adicionar_avaliacao_sheets(cliente_id, avaliacao)
+    
+    # Fallback para JSON
     clientes = _carregar_dados_json()
     
     for cliente in clientes:
         if cliente.get("id") == cliente_id:
-            # Garante que a avaliação tenha um ID único
-            if "id" not in avaliacao:
-                avaliacao["id"] = str(uuid.uuid4())
-            
-            # Garante que tenha data
-            if "data" not in avaliacao:
-                avaliacao["data"] = datetime.now().strftime("%Y-%m-%d")
-            
             cliente["avaliacoes"].append(avaliacao)
             _salvar_dados_json(clientes)
             return True
@@ -86,6 +164,11 @@ def obter_historico_avaliacoes(cliente_id: str) -> list[dict]:
     :param cliente_id: ID único do cliente
     :return: Lista de avaliações ordenadas da mais antiga para mais recente
     """
+    if _usar_sheets():
+        avaliacoes = _carregar_avaliacoes_sheets(cliente_id)
+        return sorted(avaliacoes, key=lambda a: a.get("data", ""))
+    
+    # Fallback para JSON
     cliente = buscar_cliente_por_id(cliente_id)
     
     if not cliente:
@@ -149,19 +232,13 @@ def contar_avaliacoes(cliente_id: str) -> int:
     :param cliente_id: ID único do cliente
     :return: Quantidade de avaliações
     """
-    cliente = buscar_cliente_por_id(cliente_id)
-    
-    if not cliente:
-        return 0
-    
-    return len(cliente.get("avaliacoes", []))
+    historico = obter_historico_avaliacoes(cliente_id)
+    return len(historico)
 
 
 def listar_datas_avaliacoes(cliente_id: str) -> list[str]:
     """
     Retorna lista de datas de todas as avaliações do cliente.
-    
-    Útil para preencher selectboxes de comparação.
     
     :param cliente_id: ID único do cliente
     :return: Lista de datas no formato YYYY-MM-DD
@@ -178,6 +255,8 @@ def excluir_avaliacao(cliente_id: str, avaliacao_id: str) -> bool:
     :param avaliacao_id: ID único da avaliação
     :return: True se excluído com sucesso, False caso contrário
     """
+    # Para Sheets, seria necessário encontrar e deletar a linha
+    # Por ora, mantemos apenas JSON
     clientes = _carregar_dados_json()
     
     for cliente in clientes:

@@ -47,3 +47,7 @@ explorar_excel.py
 
 # Dados sensíveis (manter clientes.json vazio no repo)
 # dados/clientes.json
+
+# Credenciais do Google Cloud (NUNCA comitar!)
+.streamlit/credentials.json
+.streamlit/secrets.toml
